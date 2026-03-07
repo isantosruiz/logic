@@ -1912,7 +1912,7 @@ INDEX_HTML = """
         </label>
 
         <label>
-          Don't cares (opcional)
+          Don't care (opcional)
           <input id="dontcares" name="dontcares" placeholder="2, 6" />
         </label>
 
@@ -2668,8 +2668,8 @@ INDEX_HTML = """
           `<div><strong>Método:</strong> ${escapeHtml(result.method || 'auto')} (${escapeHtml(guarantee)})</div>`,
           `<div><strong>Casos revisados:</strong> ${escapeHtml(result.checked_cases || 0)} / ${escapeHtml(result.total_care_cases || 0)}</div>`,
           `<div><strong>Variables:</strong> ${escapeHtml((data.variables || []).join(', ') || '(ninguna)')}</div>`,
-          `<div><strong>Expresión A:</strong> <code>${escapeHtml(data.expression_a || '')}</code></div>`,
-          `<div><strong>Expresión B:</strong> <code>${escapeHtml(data.expression_b || '')}</code></div>`,
+          `<div><strong>Expresión 1:</strong> <code>${escapeHtml(data.expression_a || '')}</code></div>`,
+          `<div><strong>Expresión 2:</strong> <code>${escapeHtml(data.expression_b || '')}</code></div>`,
           counterexample,
         ].join('');
       } catch (error) {
