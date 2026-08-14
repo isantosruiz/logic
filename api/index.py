@@ -1940,9 +1940,10 @@ INDEX_HTML = """
       content: 'F =';
       flex: 0 0 auto;
       color: var(--faint);
-      font-size: 0.72rem;
+      font-size: inherit;
       font-family: inherit;
       font-weight: inherit;
+      line-height: inherit;
       letter-spacing: 0;
     }
 
