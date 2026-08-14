@@ -1917,16 +1917,33 @@ INDEX_HTML = """
     }
 
     code.result-expression {
-      display: block;
+      display: flex;
+      align-items: baseline;
+      gap: 0.7rem;
       min-width: min(100%, 240px);
-      padding: 0.7rem 0.85rem;
-      background: var(--ink);
-      color: #dff5ff;
+      padding: 0.25rem 0 0.35rem 1rem;
+      background: transparent;
+      color: var(--blue-dark);
       border: 0;
-      border-radius: 9px;
-      font-size: clamp(1rem, 2vw, 1.3rem);
-      text-align: center;
-      box-shadow: 4px 4px 0 rgba(40, 166, 212, 0.25);
+      border-left: 3px solid var(--blue-bright);
+      border-radius: 0;
+      font-family: "IBM Plex Mono", "Consolas", monospace;
+      font-size: clamp(1.2rem, 2.4vw, 1.65rem);
+      font-weight: 500;
+      line-height: 1.35;
+      text-align: left;
+      box-shadow: none;
+      overflow-wrap: anywhere;
+    }
+
+    code.result-expression::before {
+      content: 'F =';
+      flex: 0 0 auto;
+      color: var(--faint);
+      font-size: 0.72rem;
+      font-family: inherit;
+      font-weight: inherit;
+      letter-spacing: 0;
     }
 
     .result-grid {
