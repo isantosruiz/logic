@@ -105,6 +105,16 @@ def make_boolean_symbols(variable_names: list[str]) -> tuple[Symbol, ...]:
     return (generated,)
 
 
+def simplify_boolean_form(expression: Any, form: str):
+    # With an explicit form, SymPy can leave an already-normal expression such
+    # as A | ~A untouched. The form-free pass detects constants reliably.
+    form_free = simplify_logic(expression, force=True)
+    if form_free in {true, false}:
+        return form_free
+
+    return simplify_logic(expression, form=form, force=True)
+
+
 def _normalize_equation(raw: str) -> str:
     equation = raw.strip()
     if "=" in equation:
@@ -312,10 +322,10 @@ def simplify_from_minterms(
     bool_symbols = make_boolean_symbols(variable_names)
     if result_form == "sop":
         expression = SOPform(bool_symbols, minterms, dontcares)
-        return simplify_logic(expression, form="dnf", force=True)
+        return simplify_boolean_form(expression, "dnf")
 
     expression = POSform(bool_symbols, minterms, dontcares)
-    return simplify_logic(expression, form="cnf", force=True)
+    return simplify_boolean_form(expression, "cnf")
 
 
 def minterms_from_maxterms(
@@ -612,7 +622,7 @@ def _parse_boolean_literal(node: Any) -> tuple[str, bool] | None:
 
 
 def _extract_dnf_terms(expression: Any) -> tuple[Any, list[list[tuple[str, bool]]]]:
-    dnf = simplify_logic(expression, form="dnf", force=True)
+    dnf = simplify_boolean_form(expression, "dnf")
     if dnf in {true, false}:
         return dnf, []
 
@@ -637,7 +647,7 @@ def _extract_dnf_terms(expression: Any) -> tuple[Any, list[list[tuple[str, bool]
 
 
 def _extract_cnf_clauses(expression: Any) -> tuple[Any, list[list[tuple[str, bool]]]]:
-    cnf = simplify_logic(expression, form="cnf", force=True)
+    cnf = simplify_boolean_form(expression, "cnf")
     if cnf in {true, false}:
         return cnf, []
 
@@ -1122,7 +1132,7 @@ def simplify_endpoint():
                 variables = inferred_variables
 
             form = "dnf" if result_form == "sop" else "cnf"
-            simplified = simplify_logic(expression, form=form, force=True)
+            simplified = simplify_boolean_form(expression, form)
             terms = derive_terms_from_expression(expression, variables)
             truth_table = build_truth_table_from_expression(expression, variables)
             equivalence = compare_expressions(
@@ -1329,8 +1339,8 @@ def convert_endpoint():
 
             terms = derive_terms_from_expression(expression, variables)
             truth_table = build_truth_table_from_expression(expression, variables)
-            sop_expr = simplify_logic(expression, form="dnf", force=True)
-            pos_expr = simplify_logic(expression, form="cnf", force=True)
+            sop_expr = simplify_boolean_form(expression, "dnf")
+            pos_expr = simplify_boolean_form(expression, "cnf")
 
             return jsonify(
                 {
@@ -1392,75 +1402,212 @@ INDEX_HTML = """
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Simplificador booleano</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
     :root {
-      --bg: #e9f4ff;
-      --card: #ffffff;
-      --primary: #1f74d1;
-      --primary-strong: #1459a6;
-      --primary-soft: #cfe6ff;
-      --text: #10243d;
-      --muted: #4a6280;
-      --border: #c6dbf2;
-      --border-strong: #9ec2e6;
-      --ok-bg: #eef7ff;
-      --ok-border: #b8d8fb;
-      --surface-soft: #f6fbff;
+      --canvas: #eaf4fa;
+      --paper: #fbfdff;
+      --surface: #f3f8fc;
+      --surface-blue: #e3f2fb;
+      --ink: #0a2134;
+      --muted: #587083;
+      --faint: #7890a2;
+      --line: #c4d7e4;
+      --line-strong: #9fbccd;
+      --blue: #0769a5;
+      --blue-dark: #06466d;
+      --blue-bright: #28a6d4;
+      --blue-soft: #cfeaf8;
+      --green: #18734b;
+      --green-soft: #e8f7ef;
+      --red: #a43845;
+      --red-soft: #fff0f2;
+      --shadow: 0 24px 70px rgba(33, 76, 104, 0.13);
     }
 
     * { box-sizing: border-box; }
 
+    html { scroll-behavior: smooth; }
+
     body {
       margin: 0;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      color: var(--text);
+      font-family: "Space Grotesk", "Avenir Next", sans-serif;
+      color: var(--ink);
       background:
-        radial-gradient(circle at top left, #d5ebff 0%, transparent 45%),
-        radial-gradient(circle at bottom right, #c9e3ff 0%, transparent 42%),
-        var(--bg);
+        linear-gradient(rgba(31, 109, 153, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(31, 109, 153, 0.055) 1px, transparent 1px),
+        radial-gradient(circle at 12% 2%, rgba(89, 194, 228, 0.24), transparent 28rem),
+        radial-gradient(circle at 88% 75%, rgba(75, 150, 205, 0.14), transparent 34rem),
+        var(--canvas);
+      background-size: 32px 32px, 32px 32px, auto, auto, auto;
       min-height: 100vh;
-      padding: 2rem 1rem;
+      padding: 2.75rem 1.25rem 3.25rem;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
       align-items: center;
-      gap: 0.65rem;
+      gap: 1.25rem;
     }
 
     .container {
-      width: min(1060px, 100%);
-      background: var(--card);
-      border: 1px solid var(--border-strong);
-      border-radius: 18px;
-      box-shadow: 0 22px 44px rgba(16, 67, 122, 0.14);
+      width: min(1120px, 100%);
+      background: var(--paper);
+      border: 1px solid rgba(133, 169, 190, 0.8);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
       overflow: hidden;
+      animation: page-in 0.55s cubic-bezier(0.2, 0.75, 0.25, 1) both;
     }
 
     .header {
-      padding: 1.5rem;
-      background: linear-gradient(120deg, var(--primary), #53a5f5);
-      color: #fff;
+      position: relative;
+      padding: 2.5rem 2.75rem 2.65rem;
+      overflow: hidden;
+      background:
+        linear-gradient(110deg, rgba(255, 255, 255, 0.97), rgba(230, 245, 253, 0.92)),
+        var(--paper);
+      border-bottom: 1px solid var(--line);
     }
 
-    .header h1 { margin: 0 0 0.35rem; font-size: 1.4rem; }
-    .header p { margin: 0; opacity: 0.92; }
+    .header::after {
+      content: '';
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      right: -92px;
+      top: -126px;
+      border: 46px solid rgba(41, 161, 207, 0.12);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .header-layout {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 2rem;
+    }
+
+    .brand-line,
+    .section-number,
+    .result-kicker,
+    .method-label {
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .brand-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 1rem;
+      color: var(--blue);
+    }
+
+    .brand-line::before {
+      content: '';
+      width: 1.8rem;
+      height: 2px;
+      background: var(--blue-bright);
+      box-shadow: 0 6px 0 rgba(40, 166, 212, 0.45);
+    }
+
+    .header h1 {
+      max-width: 760px;
+      margin: 0;
+      font-size: clamp(2.3rem, 5vw, 4.65rem);
+      line-height: 0.96;
+      letter-spacing: -0.065em;
+      font-weight: 700;
+      text-wrap: balance;
+    }
+
+    .header p {
+      max-width: 700px;
+      margin: 1.15rem 0 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 1rem;
+    }
+
+    .method-card {
+      min-width: 212px;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 15px;
+      background: rgba(251, 253, 255, 0.74);
+      box-shadow: 8px 8px 0 rgba(82, 156, 195, 0.12);
+    }
+
+    .method-label {
+      display: block;
+      color: var(--faint);
+      margin-bottom: 0.4rem;
+    }
+
+    .method-card strong {
+      display: block;
+      font-size: 0.96rem;
+      color: var(--blue-dark);
+    }
 
     .block {
-      padding: 1.25rem 1.5rem;
-      border-top: 1px solid var(--border);
+      padding: 2.2rem 2.75rem 2.7rem;
       display: grid;
-      gap: 1rem;
+      gap: 1.35rem;
       align-content: start;
     }
 
-    .block h2 {
+    .section-heading {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .section-number {
+      display: grid;
+      place-items: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--surface-blue);
+    }
+
+    .section-heading h2,
+    .block > h2 {
       margin: 0;
-      font-size: 1.08rem;
-      color: #0f2d52;
+      color: var(--ink);
+      font-size: clamp(1.35rem, 2vw, 1.75rem);
+      line-height: 1.2;
+      letter-spacing: -0.035em;
+    }
+
+    .section-heading p {
+      margin: 0.38rem 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 0.92rem;
+    }
+
+    .logic-form {
+      display: grid;
+      gap: 1.15rem;
+      margin-top: 0.25rem;
+      padding: 1.35rem;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(145deg, #ffffff, #f5faff);
     }
 
     .tools-block {
-      border-top: 0;
-      gap: 0.95rem;
+      gap: 1.1rem;
     }
 
     .tools-block details.module-frame.ondemand {
@@ -1468,53 +1615,60 @@ INDEX_HTML = """
     }
 
     .tools-block .module-frame + .module-frame {
-      margin-top: 0.95rem;
+      margin-top: 0.25rem;
     }
 
     .module-frame {
-      margin: 0.95rem 1.5rem;
-      border: 1px solid var(--border-strong);
-      border-radius: 14px;
-      background: var(--card);
-      padding: 0.85rem 1rem;
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: rgba(255, 255, 255, 0.72);
+      padding: 1.05rem 1.15rem;
       display: grid;
-      gap: 0.9rem;
-      box-shadow: 0 8px 20px rgba(31, 116, 209, 0.08);
+      gap: 1rem;
+      transition: border-color 0.2s ease, background 0.2s ease;
     }
 
     details.ondemand {
       display: block;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface-soft);
-      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--surface);
+      padding: 0.9rem 1rem;
       margin: 0;
     }
 
     details.module-frame.ondemand {
-      margin: 0.95rem 1.5rem;
+      margin: 0;
+    }
+
+    details.module-frame[open] {
+      border-color: var(--line-strong);
+      background: #fff;
     }
 
     details.ondemand > summary {
       cursor: pointer;
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #0f2d52;
+      font-size: 1.03rem;
+      font-weight: 600;
+      color: var(--ink);
       user-select: none;
       outline: none;
       list-style: none;
       display: flex;
       align-items: center;
-      min-height: 1.5rem;
-      gap: 0.35rem;
+      min-height: 2rem;
+      gap: 0.75rem;
     }
 
     details.ondemand > summary::after {
-      content: '⌄';
+      content: '';
       margin-left: auto;
-      color: #2a5f97;
-      font-size: 1.05rem;
-      line-height: 1;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-right: 1.5px solid var(--blue);
+      border-bottom: 1.5px solid var(--blue);
+      transform: rotate(45deg) translateY(-2px);
       transition: transform 0.2s ease;
     }
 
@@ -1523,11 +1677,11 @@ INDEX_HTML = """
     }
 
     details.ondemand[open] > summary {
-      margin-bottom: 0.7rem;
+      margin-bottom: 1rem;
     }
 
     details.ondemand[open] > summary::after {
-      transform: rotate(180deg);
+      transform: rotate(225deg) translate(-2px, -2px);
     }
 
     details.ondemand.plain {
@@ -1537,7 +1691,7 @@ INDEX_HTML = """
     }
 
     details.ondemand.plain > summary {
-      padding: 0.1rem 0;
+      padding: 0.1rem 0.15rem;
     }
 
     .module-inner {
@@ -1546,43 +1700,51 @@ INDEX_HTML = """
       background: transparent;
       padding: 0;
       display: grid;
-      gap: 0.95rem;
-      margin: 0 0.35rem;
+      gap: 1rem;
+      margin: 0 0.2rem;
     }
 
     .module-frame > .result {
-      margin: 0 0.35rem;
+      margin: 0.35rem 0.2rem 0;
     }
 
     .synthesis-title {
-      margin: 0 0 1.15rem;
+      margin: 0 0 1rem;
+    }
+
+    .panel h2 {
+      color: var(--ink);
+      font-size: 1.18rem;
+      line-height: 1.25;
+      letter-spacing: -0.025em;
+    }
+
+    .panel hr {
+      width: 100%;
+      margin: 0.5rem 0;
+      border: 0;
+      border-top: 1px solid var(--line);
     }
 
     .row {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.9rem;
+      gap: 1rem;
     }
 
     .row-3 {
       display: grid;
       grid-template-columns: 2fr 1fr 1fr;
-      gap: 0.9rem;
-    }
-
-    @media (max-width: 860px) {
-      .row, .row-3 { grid-template-columns: 1fr; }
-      .module-frame { margin: 0.85rem 1rem; }
-      details.module-frame.ondemand { margin: 0.85rem 1rem; }
-      .block { padding: 1rem; }
+      gap: 1rem;
     }
 
     label {
       display: grid;
-      gap: 0.45rem;
-      font-size: 0.95rem;
+      gap: 0.5rem;
+      font-size: 0.82rem;
       color: var(--muted);
       font-weight: 600;
+      letter-spacing: 0.015em;
       align-content: start;
     }
 
@@ -1592,110 +1754,267 @@ INDEX_HTML = """
 
     input, select, textarea {
       width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.65rem 0.75rem;
-      background: #fbfdff;
-      color: var(--text);
-      box-shadow: inset 0 1px 2px rgba(19, 67, 119, 0.05);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 0.78rem 0.85rem;
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--ink);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
     }
 
     input::placeholder,
     textarea::placeholder {
-      color: #89a4c2;
+      color: #8da2b1;
       opacity: 1;
       font-weight: 400;
     }
 
     input:focus, select:focus, textarea:focus {
-      outline: 2px solid var(--primary-soft);
-      border-color: var(--primary);
+      outline: none;
+      border-color: var(--blue);
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(37, 153, 202, 0.14);
     }
 
-    textarea { min-height: 122px; resize: vertical; }
+    textarea {
+      min-height: 132px;
+      resize: vertical;
+      line-height: 1.5;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.88rem;
+    }
 
     .hidden { display: none !important; }
 
     .hint {
-      font-size: 0.82rem;
-      color: #5a7190;
-      margin-top: 0.2rem;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: var(--faint);
+      margin-top: 0.1rem;
       font-weight: 400;
     }
 
     .placeholder-note {
-      margin-top: -0.3rem;
-      margin-bottom: 0.15rem;
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      margin: 0;
+      padding: 0.45rem 0.65rem;
+      border-left: 2px solid var(--blue-bright);
+      background: rgba(226, 242, 251, 0.62);
     }
 
     .actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.55rem;
+      gap: 0.7rem;
+      align-items: center;
     }
 
     button {
       appearance: none;
-      border: 0;
-      border-radius: 999px;
-      padding: 0.68rem 1.12rem;
+      border: 1px solid var(--blue-dark);
+      border-radius: 10px;
+      padding: 0.76rem 1.05rem;
       cursor: pointer;
-      background: linear-gradient(120deg, var(--primary), #3d95ea);
+      background: var(--blue-dark);
       color: #fff;
-      font-weight: 700;
+      font-weight: 600;
       width: fit-content;
-      box-shadow: 0 6px 14px rgba(23, 91, 164, 0.25);
+      box-shadow: 4px 4px 0 rgba(40, 166, 212, 0.3);
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+    }
+
+    button[type="submit"]::after {
+      content: '→';
+      display: inline-block;
+      margin-left: 0.65rem;
+      transition: transform 0.16s ease;
+    }
+
+    button:hover {
+      background: var(--blue);
+      transform: translate(-1px, -1px);
+      box-shadow: 6px 6px 0 rgba(40, 166, 212, 0.3);
+    }
+
+    button[type="submit"]:hover::after {
+      transform: translateX(3px);
+    }
+
+    button:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 rgba(40, 166, 212, 0.28);
+    }
+
+    button:focus-visible,
+    summary:focus-visible,
+    a:focus-visible {
+      outline: 3px solid rgba(40, 166, 212, 0.35);
+      outline-offset: 3px;
     }
 
     button.secondary {
-      background: #edf6ff;
-      color: #1a4f86;
-      border: 1px solid #b8d4f2;
+      background: #fff;
+      color: var(--blue-dark);
+      border: 1px solid var(--line-strong);
       font-weight: 600;
       box-shadow: none;
     }
 
+    button.secondary:hover {
+      background: var(--surface-blue);
+      box-shadow: none;
+    }
+
     .result {
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      padding: 1rem;
-      background: var(--surface-soft);
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--blue);
+      padding: 1.2rem;
+      background: #f7fbfe;
       display: grid;
-      gap: 0.5rem;
+      gap: 0.8rem;
       word-break: break-word;
       align-content: start;
     }
 
     #equivalenceResult {
-      margin-top: 0.75rem;
+      margin-top: 1rem;
     }
 
     .ok {
-      background: var(--ok-bg);
-      border-color: var(--ok-border);
+      background: linear-gradient(145deg, #f9fdff, #edf8fd);
+      border-color: #9fc9de;
     }
 
     .error {
-      border-color: #efb5b5;
-      background: #fff4f4;
-      color: #9a2f2f;
+      border-color: #e4a9b0;
+      border-left-color: var(--red);
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .result-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+      gap: 1.25rem;
+      align-items: end;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .result-kicker {
+      display: block;
+      color: var(--blue);
+      margin-bottom: 0.35rem;
+    }
+
+    .result-format {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    code.result-expression {
+      display: block;
+      min-width: min(100%, 240px);
+      padding: 0.7rem 0.85rem;
+      background: var(--ink);
+      color: #dff5ff;
+      border: 0;
+      border-radius: 9px;
+      font-size: clamp(1rem, 2vw, 1.3rem);
+      text-align: center;
+      box-shadow: 4px 4px 0 rgba(40, 166, 212, 0.25);
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--line);
+    }
+
+    .result-item {
+      min-width: 0;
+      padding: 0.75rem 0.85rem;
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .result-item span {
+      display: block;
+      margin-bottom: 0.28rem;
+      color: var(--faint);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .result-item strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.88rem;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    .result-proof {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      color: var(--green);
+      font-size: 0.86rem;
+      font-weight: 600;
+    }
+
+    .result-proof::before {
+      content: '✓';
+      display: grid;
+      place-items: center;
+      width: 1.35rem;
+      height: 1.35rem;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--green-soft);
+    }
+
+    .result-proof.failed {
+      color: var(--red);
+    }
+
+    .result-proof.failed::before {
+      content: '!';
+      background: var(--red-soft);
+    }
+
+    .result-counterexample {
+      padding: 0.75rem 0.85rem;
+      border-radius: 9px;
+      background: var(--red-soft);
+      color: var(--red);
+      font-size: 0.84rem;
     }
 
     .panel {
-      border: 1px solid var(--border-strong);
-      border-radius: 12px;
-      padding: 0.9rem;
-      background: #fafdff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1.15rem 1.2rem;
+      background: rgba(247, 251, 254, 0.8);
       display: grid;
-      gap: 0.7rem;
+      gap: 0.85rem;
       align-content: start;
     }
 
     .mini-table {
       overflow: auto;
       max-height: 320px;
-      border: 1px solid #c9dbed;
-      border-radius: 10px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
       background: #fff;
     }
 
@@ -1710,36 +2029,40 @@ INDEX_HTML = """
     }
 
     th, td {
-      border: 1px solid #d3e2f1;
-      padding: 0.4rem 0.5rem;
+      border: 1px solid #d8e5ed;
+      padding: 0.52rem 0.62rem;
       text-align: center;
       white-space: nowrap;
     }
 
     th {
-      background: #eaf4ff;
-      color: #1f4f7f;
+      background: var(--surface-blue);
+      color: var(--blue-dark);
       font-weight: 700;
+      position: sticky;
+      top: 0;
     }
 
     code {
-      background: #eaf4ff;
-      border-radius: 6px;
-      padding: 0.15rem 0.35rem;
+      background: #e4f2fa;
+      border: 1px solid #d0e5f1;
+      border-radius: 5px;
+      padding: 0.13rem 0.32rem;
       font-family: "IBM Plex Mono", "Consolas", monospace;
       font-size: 0.86em;
     }
 
     pre {
       margin: 0;
-      background: #f4f9ff;
-      border-radius: 8px;
-      padding: 0.65rem;
+      background: #eef6fb;
+      border-radius: 10px;
+      padding: 0.85rem;
       overflow: auto;
       max-height: 260px;
-      border: 1px solid #d3e2f1;
+      border: 1px solid var(--line);
       font-family: "IBM Plex Mono", "Consolas", monospace;
       font-size: 0.83rem;
+      line-height: 1.55;
     }
 
     .circuit-toolbar {
@@ -1767,7 +2090,7 @@ INDEX_HTML = """
       border: 0;
       border-radius: 0;
       background: transparent;
-      color: #1a4f86;
+      color: var(--blue-dark);
       font-size: 0.9rem;
       cursor: pointer;
       user-select: none;
@@ -1776,12 +2099,14 @@ INDEX_HTML = """
 
     .circuit-radio input[type="radio"] {
       margin: 0;
-      accent-color: var(--primary);
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--blue);
     }
 
     .circuit-radio.active {
       background: transparent;
-      color: #0f2d52;
+      color: var(--ink);
       font-weight: 700;
     }
 
@@ -1794,36 +2119,36 @@ INDEX_HTML = """
     }
 
     .circuit-svg text {
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      font-family: "Space Grotesk", sans-serif;
       font-size: 12px;
       fill: #0f2527;
       user-select: none;
     }
 
     .circuit-wire {
-      stroke: #58799d;
+      stroke: #496f87;
       stroke-width: 1.4;
       fill: none;
     }
 
     .circuit-shape {
-      stroke: #31577f;
+      stroke: #28566f;
       stroke-width: 1.5;
-      fill: #ffffff;
+      fill: #fafeff;
     }
 
     .circuit-io {
-      stroke: #31577f;
+      stroke: #28566f;
       stroke-width: 1.3;
       fill: #f3f9ff;
     }
 
     .circuit-input {
-      fill: #e4f1ff;
+      fill: #dff3fb;
     }
 
     .circuit-output {
-      fill: #d9e9ff;
+      fill: #bde7f7;
     }
 
     .circuit-const {
@@ -1841,32 +2166,90 @@ INDEX_HTML = """
     }
 
     .footer {
-      width: min(1060px, 100%);
-      margin-top: 0.85rem;
-      padding: 0.2rem 1.5rem 0.9rem;
+      width: min(1120px, 100%);
+      margin-top: 1.5rem;
+      padding: 0.4rem 1.5rem;
       font-size: 0.82rem;
-      color: #5a7190;
+      color: var(--muted);
       text-align: center;
     }
 
     .footer a {
-      color: #1a65b3;
+      color: var(--blue-dark);
       text-decoration: none;
       font-weight: 400;
+    }
+
+    .footer a:hover { color: var(--blue); }
+
+    .tools-container {
+      animation-delay: 0.08s;
+    }
+
+    @keyframes page-in {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 860px) {
+      body { padding: 1.25rem 0.8rem 2.5rem; }
+      .container { border-radius: 20px; }
+      .header { padding: 2rem 1.35rem; }
+      .header-layout { grid-template-columns: 1fr; align-items: start; gap: 1.5rem; }
+      .method-card { min-width: 0; width: min(100%, 320px); }
+      .block { padding: 1.5rem 1.35rem 1.8rem; }
+      .row, .row-3 { grid-template-columns: 1fr; }
+      .result-head { grid-template-columns: 1fr; align-items: start; }
+      code.result-expression { width: 100%; text-align: left; }
+      .result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 540px) {
+      .header h1 { font-size: 2.45rem; }
+      .logic-form { padding: 1rem; border-radius: 14px; }
+      .section-heading { gap: 0.75rem; }
+      .section-number { width: 2.1rem; height: 2.1rem; }
+      .result-grid { grid-template-columns: 1fr; }
+      .result, .panel { padding: 1rem; }
+      button { width: 100%; justify-content: center; }
+      .actions { display: grid; grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
 <body>
   <main class="container">
     <header class="header">
-      <h1>Simplificador de expresiones booleanas</h1>
-      <p>Admite ecuación, tabla, minitérminos y maxitérminos.</p>
+      <div class="header-layout">
+        <div>
+          <div class="brand-line">Laboratorio de lógica digital</div>
+          <h1>Simplificador booleano</h1>
+          <p>Reduce expresiones, tablas y términos canónicos; después explora su tabla de verdad y la síntesis del circuito.</p>
+        </div>
+        <aside class="method-card" aria-label="Método de simplificación">
+          <span class="method-label">Método exacto</span>
+          <strong>Quine‑McCluskey</strong>
+        </aside>
+      </div>
     </header>
 
     <section class="block">
-      <h2>Simplificación</h2>
+      <div class="section-heading">
+        <span class="section-number">01</span>
+        <div>
+          <h2>Simplificación lógica</h2>
+          <p>Elige una representación de entrada y la forma normal que quieres obtener.</p>
+        </div>
+      </div>
       <div class="hint placeholder-note">Los textos en gris dentro de los campos son ejemplos; el campo sigue vacío hasta que escribas.</div>
-      <form id="logicForm" class="block" style="padding:0;border-top:0;">
+      <form id="logicForm" class="logic-form">
         <div class="row">
           <label>
             Modo de entrada
@@ -1921,16 +2304,22 @@ INDEX_HTML = """
         </div>
       </form>
 
-      <section id="result" class="result hidden"></section>
-      <section id="truthPanel" class="panel hidden"></section>
-      <section id="gatePanel" class="panel hidden"></section>
-      <section id="circuitPanel" class="panel hidden"></section>
+      <section id="result" class="result hidden" aria-live="polite"></section>
+      <section id="truthPanel" class="panel hidden" aria-live="polite"></section>
+      <section id="gatePanel" class="panel hidden" aria-live="polite"></section>
+      <section id="circuitPanel" class="panel hidden" aria-live="polite"></section>
     </section>
   </main>
 
   <section class="container tools-container">
     <section class="block tools-block">
-      <h2>Herramientas adicionales</h2>
+      <div class="section-heading">
+        <span class="section-number">02</span>
+        <div>
+          <h2>Herramientas adicionales</h2>
+          <p>Abre únicamente el módulo que necesites para comparar o transformar representaciones.</p>
+        </div>
+      </div>
     <details class="module-frame ondemand">
       <summary>Verificador de equivalencia</summary>
       <form id="equivalenceForm" class="module-inner">
@@ -1973,7 +2362,7 @@ INDEX_HTML = """
         </div>
       </form>
 
-      <section id="equivalenceResult" class="result hidden"></section>
+      <section id="equivalenceResult" class="result hidden" aria-live="polite"></section>
     </details>
 
     <details class="module-frame ondemand">
@@ -2014,7 +2403,7 @@ INDEX_HTML = """
         </div>
       </form>
 
-      <section id="convertResult" class="result hidden"></section>
+      <section id="convertResult" class="result hidden" aria-live="polite"></section>
     </details>
     </section>
   </section>
@@ -2499,9 +2888,9 @@ INDEX_HTML = """
       gatePanel.innerHTML = [
         '<h2 class="synthesis-title">Síntesis con compuertas</h2>',
         `<div><strong>AND/OR/NOT:</strong> AND=${aon.and}, OR=${aon.or}, NOT=${aon.not}, Total=${aon.total}</div>`,
-        '<hr style="border:0;border-top:1px solid #d7dde1;margin:0.35rem 0;">',
+        '<hr>',
         renderNetwork('Solo NAND', nand),
-        '<hr style="border:0;border-top:1px solid #d7dde1;margin:0.35rem 0;">',
+        '<hr>',
         renderNetwork('Solo NOR', nor),
       ].join('');
     }
@@ -2558,20 +2947,33 @@ INDEX_HTML = """
         : `No (${eq.method || 'auto'})`;
 
       const counterExampleHtml = eq.counterexample
-        ? `<div><strong>Contraejemplo:</strong> índice ${escapeHtml(eq.counterexample.index)} | A=${escapeHtml(eq.counterexample.value_a)} | B=${escapeHtml(eq.counterexample.value_b)} | asignación ${escapeHtml(JSON.stringify(eq.counterexample.assignment))}</div>`
+        ? `<div class="result-counterexample"><strong>Contraejemplo:</strong> índice ${escapeHtml(eq.counterexample.index)} | A=${escapeHtml(eq.counterexample.value_a)} | B=${escapeHtml(eq.counterexample.value_b)} | asignación ${escapeHtml(JSON.stringify(eq.counterexample.assignment))}</div>`
         : '';
+
+      const variablesText = (data.variables || []).length
+        ? escapeHtml(data.variables.join(', '))
+        : 'Ninguna (constante)';
+      const proofClass = eq.equivalent ? 'result-proof' : 'result-proof failed';
 
       resultBox.classList.remove('hidden', 'error');
       resultBox.classList.add('ok');
       resultBox.innerHTML = [
-        `<div><strong>Forma solicitada:</strong> ${labels[data.result_form] || escapeHtml(data.result_form)}</div>`,
-        `<div><strong>Variables:</strong> ${data.variables.length ? escapeHtml(data.variables.join(', ')) : 'Ninguna (constante)'}</div>`,
-        `<div><strong>Expresión base:</strong> <code>${escapeHtml(data.expression || '')}</code></div>`,
-        `<div><strong>Resultado simplificado:</strong> <code>${escapeHtml(data.simplified_expression || '')}</code></div>`,
-        `<div><strong>Minitérminos:</strong> ${escapeHtml(formatList(terms.minterms))}</div>`,
-        `<div><strong>Maxitérminos:</strong> ${escapeHtml(formatList(terms.maxterms))}</div>`,
-        `<div><strong>Don't cares:</strong> ${escapeHtml(formatList(terms.dontcares))}</div>`,
-        `<div><strong>Equivalencia comprobada:</strong> ${escapeHtml(eqLine)}</div>`,
+        '<div class="result-head">',
+        '<div>',
+        '<span class="result-kicker">Resultado minimizado</span>',
+        `<div class="result-format">${labels[data.result_form] || escapeHtml(data.result_form)}</div>`,
+        '</div>',
+        `<code class="result-expression">${escapeHtml(data.simplified_expression || '')}</code>`,
+        '</div>',
+        '<div class="result-grid">',
+        `<div class="result-item"><span>Variables</span><strong>${variablesText}</strong></div>`,
+        `<div class="result-item"><span>Expresión base</span><strong><code>${escapeHtml(data.expression || '')}</code></strong></div>`,
+        `<div class="result-item"><span>Casos revisados</span><strong>${escapeHtml(eq.checked_cases || 0)}</strong></div>`,
+        `<div class="result-item"><span>Minitérminos</span><strong>${escapeHtml(formatList(terms.minterms))}</strong></div>`,
+        `<div class="result-item"><span>Maxitérminos</span><strong>${escapeHtml(formatList(terms.maxterms))}</strong></div>`,
+        `<div class="result-item"><span>Don't cares</span><strong>${escapeHtml(formatList(terms.dontcares))}</strong></div>`,
+        '</div>',
+        `<div class="${proofClass}">Equivalencia comprobada: ${escapeHtml(eqLine)}</div>`,
         counterExampleHtml,
       ].join('');
 
